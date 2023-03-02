@@ -3,13 +3,18 @@
 #include <stdlib.h>
 #include <malloc.h>
 
-
-
+#define INFINITY 10000
 #define MAX_POINTS 100
+#define EPS 0.0001
+#define CNT 100
 
 typedef struct {
     double x, y;
 } point;
+
+typedef struct {
+    point first, second;
+} two_points;
 
 typedef struct {
     double A, B, C, D;
@@ -21,176 +26,10 @@ typedef struct {
     segment_of_spline * list_y, * list_x;
 } spline;
 
-double get_dist_pp(point a, point b) {
+
+double get_dist_p_p(point a, point b) {
     return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
 }
-
-const double INIT_APP = 0.5; //Начальные значения иксов
-const double EPS = 0.00001;
-const int CNT = 100; //Количество итераций
-
-typedef double ** num_type;
-
-void allocate_memory(void *** matrix, int row, int col, int size_type, int size_ptr) {
-    (*matrix) = malloc(size_ptr * (row));
-    for (int i = 0; i < row; i++) {
-        (*matrix)[i] = malloc(col * size_type);
-    }
-}
-
-num_type mat_mat_mul(num_type matrix_a, int row_a, int col_a,
-                     num_type matrix_b, int row_b, int col_b) {
-    num_type ans;
-    allocate_memory(&ans, row_a, col_b, sizeof(double), sizeof(double *));
-    for (int i = 0; i < row_a; ++i) {
-        for (int j = 0; j < col_b; ++j) {
-            ans[i][j] = 0;
-            for (int k = 0; k < col_a; ++k) {
-                ans[i][j] += matrix_a[i][k] * matrix_b[k][j];
-            }
-        }
-    }
-    return ans;
-}
-
-num_type mat_num_mul(num_type matrix, int row, int col, double number) {
-    num_type ans;
-    allocate_memory(&ans, row, col, sizeof(double), sizeof(double *));
-    for (int i = 0; i < row; ++i) {
-        for (int j = 0; j < col; ++j) {
-            ans[i][j] = matrix[i][j] * number;
-        }
-    }
-    return ans;
-}
-
-num_type mat_mat_add(num_type matrix_a, num_type matrix_b, int row, int col) {
-    num_type ans;
-    allocate_memory(&ans, row, col, sizeof(double), sizeof(double *));
-    for (int i = 0; i < row; ++i) {
-        for (int j = 0; j < col; ++j) {
-            ans[i][j] = matrix_a[i][j] + matrix_b[i][j];
-        }
-    }
-    return ans;
-}
-
-num_type get_transposed_matrix(num_type matrix, int row, int col) {
-    num_type ans;
-    allocate_memory(&ans, col, row, sizeof(double), sizeof(double *));
-    for (int i = 0; i < row; ++i) {
-        for (int j = 0; j < col; ++j) {
-            ans[j][i] = matrix[i][j];
-        }
-    }
-    return ans;
-}
-
-num_type get_cofactor(num_type matrix, int order, int row, int col) {
-    num_type ans;
-    allocate_memory(&ans, order - 1, order - 1, sizeof(double), sizeof(double *));
-    for (int i = 0; i < order - 1; ++i) {
-        for (int j = 0; j < order - 1; ++j) {
-            int x, y;
-            x = i + (i >= row);
-            y = j + (j >= col);
-            ans[i][j] = matrix[x][y];
-        }
-    }
-    return ans;
-}
-
-double get_determinant(num_type matrix, int order) {
-    if (order == 1) {
-        return matrix[0][0];
-    }
-    double ans = 0;
-    for (int i = 0; i < order; ++i) {
-        int sign = ((i & 1) ? -1 : 1);
-        ans += (double)sign * matrix[0][i] * get_determinant(get_cofactor(matrix, order, 0, i), order - 1);
-    }
-    return ans;
-}
-
-num_type get_union_matrix(num_type matrix, int order) {
-    num_type ans;
-    allocate_memory(&ans, order, order, sizeof(double), sizeof(double *));
-    if (order == 1) {
-        ans[0][0] = matrix[0][0];
-        return ans;
-    }
-    for (int i = 0; i < order; ++i) {
-        for (int j = 0; j < order; ++j) {
-            int sign = ((i + j & 1) ? -1 : 1);
-            ans[i][j] = (double)sign * get_determinant(get_cofactor(matrix, order, i, j), order - 1);
-        }
-    }
-    ans = get_transposed_matrix(ans, order, order);
-    return ans;
-}
-
-num_type get_inversed_matrix(num_type matrix, int order) {
-    num_type ans;
-    allocate_memory(&ans, order, order, sizeof(double), sizeof(double *));
-    ans = mat_num_mul(get_union_matrix(matrix, order), order, order, 1.0 / get_determinant(matrix, order));
-    return ans;
-}
-
-num_type get_func_value() {
-
-}
-
-num_type get_mat_yakobi(double t1, double t2, segment_of_spline * sx1, segment_of_spline * sy1,
-                                              segment_of_spline * sx2, segment_of_spline * sy2) {
-    num_type ans;
-    allocate_memory(&ans, 2, 2, sizeof(double), sizeof(double *));
-    ans[0][1] = ans[1][0] = 0.0;
-    ans[0][0] = pow(sx1->A * pow(t1, 2) + sx1->B * t1 + sx1->C, 2) +
-                pow(sy1->A * pow(t1, 2) + sy1->B * t1 + sy1->C, 2);
-    ans[1][1] = pow(sx2->A * pow(t2, 2) + sx2->B * t2 + sx2->C, 2) +
-                pow(sy2->A * pow(t2, 2) + sy2->B * t2 + sy2->C, 2);
-    ans[0][0] *= 2.0;
-    ans[1][1] *= 2.0;
-    return ans;
-}
-
-
-void output_matrix(num_type matrix, int row, int col) {
-    for (int i = 0; i < row; ++i) {
-        for (int j = 0; j < col; ++j) {
-            if (j == 0) {
-                if (row == 1)
-                    printf("( ");
-                else if (i == 0)
-                    printf("/ ");
-                else if (i == row - 1)
-                    printf("\\ ");
-                else
-                    printf("| ");
-            }
-            printf("%.6lf", matrix[i][j]);
-            if (i == row - 1 && j == col - 1)
-                printf("  ");
-            else
-                printf(", ");
-            if (j == col - 1) {
-                if (row == 1)
-                    printf(")");
-                else if (i == 0)
-                    printf("\\");
-                else if (i == row - 1)
-                    printf("/");
-                else
-                    printf("|");
-            }
-        }
-        puts("");
-    }
-}
-
-
-
-
 
 void init(int * count_of_segments, point p_arr[], FILE * f) {
     fprintf(stderr, "init...\n");
@@ -216,7 +55,7 @@ void set_values(int count_of_segments,
                 double diagonal_matrix[MAX_POINTS][MAX_POINTS]) {
     parameter_t[0] = h[0] = 0.0;
     for (int i = 0; i < count_of_segments; ++i) {
-        h[i + 1] = get_dist_pp(p_arr[i], p_arr[i + 1]);
+        h[i + 1] = get_dist_p_p(p_arr[i], p_arr[i + 1]);
     }
     for (int i = 1; i <= count_of_segments; ++i) {
         parameter_t[i] = parameter_t[i - 1] + h[i];
@@ -311,43 +150,120 @@ spline get_spline(int count_of_segments, point p_arr[]) {
 }
 
 
-
-void iteration(double t[]) {
-    num_type m_yakobi = get_mat_yakobi(n, vector_x, vector_func);
-    ans = mat_mat_add(vector_x, mat_num_mul(mat_mat_mul(get_inversed_matrix(m_yakobi, n), n, n, get_func_value(vector_x, vector_func, n), n, 1), n, 1, -1), n, 1);
-}
-
-double get_dist_seg_seg(segment_of_spline) {
-    double t[2] = {0};
-
-    for (int i = 0; i < CNT; ++i) {
-        iteration(t);
+double get_der(segment_of_spline * seg, double number, int pr) {
+    if (pr == 0) {
+        return (double)((seg->A) * pow(number, 3) + (seg->B) * pow(number, 2) + (seg->C) * number + (seg->D));
+    }
+    if (pr == 1) {
+        return (double)(3.0 * (seg->A) * pow(number, 2) + 2.0 * (seg->B) * number + (seg->C));
+    }
+    if (pr == 2) {
+        return (double)(6.0 * (seg->A) * number + 2.0 * (seg->B));
     }
 }
 
-double get_dist_ss(spline * sp1, spline * sp2) {
+two_points get_dist_seg_seg(segment_of_spline * segx1, segment_of_spline * segy1, double t1_first, double t1_second,
+                            segment_of_spline * segx2, segment_of_spline * segy2, double t2_first, double t2_second) {
+    double t[2] = {(t1_first + t1_second) / 2, (t2_first + t2_second) / 2};
+    for (int i = 0; i < CNT; ++i) {
+        double t1 = t[0], t2 = t[1];
 
+        t[0] = t1 - (((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
+                       get_der(segx2, t2, 2) + pow(get_der(segx2, t2, 1), 2) +
+                      (get_der(segy2, t2, 0) - get_der(segy1, t1, 0)) *
+                       get_der(segy2, t2, 2) + pow(get_der(segy2, t2, 1), 2)) *
+                      ((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
+                       get_der(segx1, t1, 1) +
+                      (get_der(segy1, t1, 0) - get_der(segy2, t2, 0)) *
+                       get_der(segy1, t1, 1)) +
+                      ((get_der(segx1, t1, 1) * get_der(segx2, t2, 1) +
+                        get_der(segy1, t1, 1) * get_der(segy2, t2, 1)) *
+                      ((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
+                        get_der(segx2, t2, 1) +
+                       (get_der(segy2, t2, 0) - get_der(segy1, t1, 0)) *
+                        get_der(segy2, t2, 1)))) /
+                        (
+                        ((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
+                          get_der(segx1, t1, 2) + pow(get_der(segx1, t1, 1), 2)) *
+
+                        ((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
+                          get_der(segx2, t2, 2) + pow(get_der(segx2, t2, 1), 2)) -
+                          pow(get_der(segx1, t1, 1) * get_der(segx2, t2, 1), 2)
+                         );
+
+        t[1] = t2 -   (((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
+                       get_der(segx1, t1, 2) + pow(get_der(segx1, t1, 1), 2) +
+                      (get_der(segy1, t1, 0) - get_der(segy2, t2, 0)) *
+                       get_der(segy1, t1, 2) + pow(get_der(segy1, t1, 1), 2)) *
+                      ((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
+                       get_der(segx2, t2, 1) +
+                      (get_der(segy2, t2, 0) - get_der(segy1, t1, 0)) *
+                       get_der(segy2, t2, 1)) +
+                      ((get_der(segx2, t2, 1) * get_der(segx1, t1, 1) +
+                        get_der(segy2, t2, 1) * get_der(segy1, t1, 1)) *
+                      ((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
+                        get_der(segx1, t1, 1) +
+                       (get_der(segy1, t1, 0) - get_der(segy2, t2, 0)) *
+                        get_der(segy1, t1, 1)))) /
+                        (
+                        ((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
+                          get_der(segx2, t2, 2) + pow(get_der(segx2, t2, 1), 2)) *
+
+                        ((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
+                          get_der(segx1, t1, 2) + pow(get_der(segx1, t1, 1), 2)) -
+                          pow(get_der(segx2, t2, 1) * get_der(segx1, t1, 1), 2)
+                         );
+
+        if (t[0] < t1_first) {
+            t[0] = t1_first;
+        }
+        if (t[0] > t1_second) {
+            t[0] = t1_second;
+        }
+        if (t[1] < t2_first) {
+            t[1] = t2_first;
+        }
+        if (t[1] > t2_second) {
+            t[1] = t2_second;
+        }
+    }
+
+    two_points ans;
+    ans.first.x = (segx1->A) * pow(t[0], 3) + (segx1->B) * pow(t[0], 2) + (segx1->C) * t[0] + (segx1->D);
+    ans.first.y = (segy1->A) * pow(t[0], 3) + (segy1->B) * pow(t[0], 2) + (segy1->C) * t[0] + (segy1->D);
+
+    ans.second.x = (segx2->A) * pow(t[1], 3) + (segx2->B) * pow(t[1], 2) + (segx2->C) * t[1] + (segx2->D);
+    ans.second.y = (segy2->A) * pow(t[1], 3) + (segy2->B) * pow(t[1], 2) + (segy2->C) * t[1] + (segy2->D);
+
+    return ans;
+}
+
+two_points get_dist_s_s(spline * sp1, spline * sp2) {
     double t1[MAX_POINTS] = {0},
            t2[MAX_POINTS] = {0};
     for (int i = 1; i <= sp1->size; ++i) {
         t1[i] = t1[i - 1] +
-        get_dist_pp((point){sp1->list_x[i - 1].begin.x, sp1->list_x[i - 1].begin.y},
+        get_dist_p_p((point){sp1->list_x[i - 1].begin.x, sp1->list_x[i - 1].begin.y},
                     (point){sp1->list_x[i - 1].end.x, sp1->list_x[i - 1].end.y});
     }
 
     for (int i = 1; i <= sp2->size; ++i) {
         t2[i] = t2[i - 1] +
-        get_dist_pp((point){sp2->list_x[i - 1].begin.x, sp2->list_x[i - 1].begin.y},
+        get_dist_p_p((point){sp2->list_x[i - 1].begin.x, sp2->list_x[i - 1].begin.y},
                     (point){sp2->list_x[i - 1].end.x, sp2->list_x[i - 1].end.y});
     }
 
-
-    double ans = 100000;
+    double min_dist = INFINITY;
+    two_points ans;
     for (int i = 0; i < sp1->size; ++i) {
         for (int j = 0; j < sp2->size; ++j) {
-            double cur_dist = get_dist_seg_seg(&(sp1->list_x[i]), &(sp1->list_y[i]),
-                                               &(sp2->list_x[j]), &(sp2->list_y[j]));
-            ans = (cur_dist < ans ? cur_dist : ans);
+            two_points now = get_dist_seg_seg(&(sp1->list_x[i]), &(sp1->list_y[i]), t1[i], t1[i + 1],
+                                              &(sp2->list_x[j]), &(sp2->list_y[j]), t2[j], t2[j + 1]);
+            double cur_dist = get_dist_p_p(now.first, now.second);
+            if (cur_dist < min_dist) {
+                min_dist = cur_dist;
+                ans = now;
+            }
         }
     }
 
@@ -360,7 +276,7 @@ void output_spline(spline * sp, FILE * f) {
     double parameter_t[MAX_POINTS] = {0};
     for (int i = 1; i <= sp->size; ++i) {
         parameter_t[i] = parameter_t[i - 1] +
-        get_dist_pp((point){sp->list_x[i - 1].begin.x, sp->list_x[i - 1].begin.y},
+        get_dist_p_p((point){sp->list_x[i - 1].begin.x, sp->list_x[i - 1].begin.y},
                     (point){sp->list_x[i - 1].end.x, sp->list_x[i - 1].end.y});
     }
 
@@ -405,10 +321,15 @@ int main() {
     spline sp2 = get_spline(count_of_segments2, p_arr2);
     output_spline(&sp2, fw);
 
-    double dist = get_dist_ss(&sp1, &sp2);
-    fprintf(stderr, ">>>dist = %.10lf\n", dist);
+    two_points pp = get_dist_s_s(&sp1, &sp2);
+    double dist = get_dist_p_p(pp.first, pp.second);
+    fprintf(stderr, ">>>dist = %.10lf\n>>>points: (%lf ,  %lf)  (%lf ,  %lf)\n", dist, pp.first.x, pp.first.y,  pp.second.x, pp.second.y);
 
-    fprintf(stderr, ">>>is_intersect = %s\n", (dist < EPS ? "true" : "false"));
+    if (dist < EPS) {
+        fprintf(stderr, ">>>is_intersect = true:(%lf,  %lf)\n", pp.first.x, pp.first.y);
+    } else {
+        fprintf(stderr, ">>>is_intersect = false\n");
+    }
 
     fclose(fw);
     fclose(fr);
