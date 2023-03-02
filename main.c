@@ -184,11 +184,18 @@ two_points get_dist_seg_seg(segment_of_spline * segx1, segment_of_spline * segy1
                         get_der(segy2, t2, 1)))) /
                         (
                         ((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
-                          get_der(segx1, t1, 2) + pow(get_der(segx1, t1, 1), 2)) *
+                          get_der(segx1, t1, 2) + pow(get_der(segx1, t1, 1), 2) +
+
+                         (get_der(segy1, t1, 0) - get_der(segy2, t2, 0)) *
+                          get_der(segy1, t1, 2) + pow(get_der(segy1, t1, 1), 2)) *
 
                         ((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
-                          get_der(segx2, t2, 2) + pow(get_der(segx2, t2, 1), 2)) -
-                          pow(get_der(segx1, t1, 1) * get_der(segx2, t2, 1), 2)
+                          get_der(segx2, t2, 2) + pow(get_der(segx2, t2, 1), 2) +
+
+                         (get_der(segy2, t2, 0) - get_der(segy1, t1, 0)) *
+                          get_der(segy2, t2, 2) + pow(get_der(segy2, t2, 1), 2)) -
+                          pow(get_der(segx1, t1, 1) * get_der(segx2, t2, 1) +
+                              get_der(segy1, t1, 1) * get_der(segy2, t2, 1), 2)
                          );
 
         t[1] = t2 -   (((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
@@ -207,11 +214,18 @@ two_points get_dist_seg_seg(segment_of_spline * segx1, segment_of_spline * segy1
                         get_der(segy1, t1, 1)))) /
                         (
                         ((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
-                          get_der(segx2, t2, 2) + pow(get_der(segx2, t2, 1), 2)) *
+                          get_der(segx2, t2, 2) + pow(get_der(segx2, t2, 1), 2) +
+
+                         (get_der(segy2, t2, 0) - get_der(segy1, t1, 0)) *
+                          get_der(segy2, t2, 2) + pow(get_der(segy2, t2, 1), 2)) *
 
                         ((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
-                          get_der(segx1, t1, 2) + pow(get_der(segx1, t1, 1), 2)) -
-                          pow(get_der(segx2, t2, 1) * get_der(segx1, t1, 1), 2)
+                          get_der(segx1, t1, 2) + pow(get_der(segx1, t1, 1), 2) +
+
+                         (get_der(segy1, t1, 0) - get_der(segy2, t2, 0)) *
+                          get_der(segy1, t1, 2) + pow(get_der(segy1, t1, 1), 2)) -
+                          pow(get_der(segx2, t2, 1) * get_der(segx1, t1, 1) +
+                              get_der(segy2, t2, 1) * get_der(segy1, t1, 1), 2)
                          );
 
         if (t[0] < t1_first) {
