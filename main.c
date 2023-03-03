@@ -1,9 +1,9 @@
 #include <stdio.h>
-#include <math.h>
 #include <stdlib.h>
+#include <string.h>
+#include <math.h>
 #include <malloc.h>
 
-#define INFINITY 10000
 #define MAX_POINTS 100
 #define EPS 0.0001
 #define CNT 100
@@ -13,26 +13,42 @@ typedef struct {
 } point;
 
 typedef struct {
-    point first, second;
-} two_points;
+    double begin, end;
+} pair_of_double;
+
+typedef struct {
+    point begin, end;
+} segment;
 
 typedef struct {
     double A, B, C, D;
-    point begin, end;
-} segment_of_spline;
+} cooficients;
+
+typedef struct {
+    cooficients x, y;
+    segment borders;
+    pair_of_double t_param;
+} piece_of_spline;
 
 typedef struct {
     int size;
-    segment_of_spline * list_y, * list_x;
+    piece_of_spline * list;
 } spline;
 
+const char input_file_path[] = "D://Dankakon//Programming//Cbiba/input.txt";
+const char to_draw_file_path[] = "D://Dankakon//pythonProject/to_draw.txt";
+const char python_script_path[] = "D://Dankakon//pythonProject/main.py";
 
-double get_dist_p_p(point a, point b) {
-    return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
+double get_segment_length(segment arg) {
+    fprintf(stderr, "   +[ getting segment length ]\n");
+    double diff_x = arg.begin.x - arg.end.x,
+           diff_y = arg.begin.y - arg.end.y;
+    return sqrt(pow(diff_x, 2) + pow(diff_y, 2));
 }
 
-void init(int * count_of_segments, point p_arr[], FILE * f) {
-    fprintf(stderr, "init...\n");
+void init(int * count_of_segments, point coordinates[], FILE * f) {
+    fprintf(stderr, "+[ initialization ]\n");
+
     if (f != NULL) {
         fscanf(f, "%d", count_of_segments);
     } else {
@@ -41,44 +57,31 @@ void init(int * count_of_segments, point p_arr[], FILE * f) {
 
     for (int i = 0; i <= *count_of_segments; ++i) {
         if (f != NULL) {
-            fscanf(f, "%lf %lf", &(p_arr[i].x), &(p_arr[i].y));
+            fscanf(f, "%lf %lf", &(coordinates[i].x), &(coordinates[i].y));
         } else {
-            scanf("%lf %lf", &(p_arr[i].x), &(p_arr[i].y));
+            scanf("%lf %lf", &(coordinates[i].x), &(coordinates[i].y));
         }
     }
 }
 
-void set_values(int count_of_segments,
-                point p_arr[],
-                double h[],
-                double parameter_t[],
-                double diagonal_matrix[MAX_POINTS][MAX_POINTS]) {
-    parameter_t[0] = h[0] = 0.0;
+cooficients * get_cooficients(int count_of_segments, spline * sp, double coordinates[]) {
+    fprintf(stderr, "+[ getting cooficients ]\n");
+
+    double h[MAX_POINTS] = {0}, diagonal_matrix[MAX_POINTS][MAX_POINTS] = {0};
     for (int i = 0; i < count_of_segments; ++i) {
-        h[i + 1] = get_dist_p_p(p_arr[i], p_arr[i + 1]);
+        h[i + 1] = get_segment_length(sp->list[i].borders);
     }
-    for (int i = 1; i <= count_of_segments; ++i) {
-        parameter_t[i] = parameter_t[i - 1] + h[i];
-    }
+
     for (int i = 1; i < count_of_segments; ++i) {
         diagonal_matrix[i - 1][i] =
         diagonal_matrix[i][i - 1] = h[i] / 6.0;
         diagonal_matrix[i][i] = (h[i] + h[i + 1]) / 3.0;
     }
-}
 
-segment_of_spline * tridiagonal_matrix_algorithm(int count_of_segments,
-                                                 double h[],
-                                                 double diagonal_matrix[MAX_POINTS][MAX_POINTS],
-                                                 double parameter_t[],
-                                                 double current_points[]) {
-    double gamma[MAX_POINTS] = {0},
-           B[MAX_POINTS] = {0},
-           U[MAX_POINTS] = {0},
-           V[MAX_POINTS] = {0};
+    double gamma[MAX_POINTS] = {0}, B[MAX_POINTS] = {0}, U[MAX_POINTS] = {0}, V[MAX_POINTS] = {0};
     for (int i = 1; i < count_of_segments; ++i) {
-        B[i] = (current_points[i + 1] - current_points[i]) / h[i + 1] -
-               (current_points[i] - current_points[i - 1]) / h[i];
+        B[i] = (coordinates[i + 1] - coordinates[i]) / h[i + 1] -
+               (coordinates[i] - coordinates[i - 1]) / h[i];
     }
 
     V[1] = diagonal_matrix[1][2] / (-diagonal_matrix[1][1]);
@@ -97,258 +100,273 @@ segment_of_spline * tridiagonal_matrix_algorithm(int count_of_segments,
         gamma[i] = V[i] * gamma[i + 1] + U[i];
     }
 
-    segment_of_spline * ans;
-    ans = (segment_of_spline *)malloc(sizeof(segment_of_spline) * count_of_segments);
+    double parameter_t[MAX_POINTS] = {0};
+    for (int i = 0; i < count_of_segments; ++i) {
+        parameter_t[i + 1] = sp->list[i].t_param.end;
+    }
+
+    cooficients * ans;
+    ans = (cooficients *)malloc(sizeof(cooficients) * count_of_segments);
     for (int i = 0; i < count_of_segments; ++i) {
         ans[i].A = (gamma[i + 1] - gamma[i]) / (6.0 * h[i + 1]);
         ans[i].B = (gamma[i] * parameter_t[i + 1] - gamma[i + 1] * parameter_t[i]) / (2.0 * h[i + 1]);
-        ans[i].C = (6.0 * current_points[i + 1] -
-                    6.0 * current_points[i] +
+        ans[i].C = (6.0 * coordinates[i + 1] -
+                    6.0 * coordinates[i] +
                     3.0 * gamma[i + 1] * pow(parameter_t[i], 2) -
                     3.0 * gamma[i] * pow(parameter_t[i + 1], 2) +
                     gamma[i] * pow(h[i + 1], 2) -
                     gamma[i + 1] * pow(h[i + 1], 2))
-        / (6.0 * h[i + 1]);
-        ans[i].D = (6.0 * current_points[i] * parameter_t[i + 1] -
-                    6.0 * current_points[i + 1] * parameter_t[i] +
+                    / (6.0 * h[i + 1]);
+        ans[i].D = (6.0 * coordinates[i] * parameter_t[i + 1] -
+                    6.0 * coordinates[i + 1] * parameter_t[i] +
                     gamma[i] * pow(parameter_t[i + 1], 3) -
                     gamma[i + 1] * pow(parameter_t[i], 3) +
                     pow(h[i + 1], 2) * parameter_t[i] * gamma[i + 1] -
                     pow(h[i + 1], 2) * parameter_t[i + 1] * gamma[i])
-        / (6.0 * h[i + 1]);
+                    / (6.0 * h[i + 1]);
     }
     return ans;
 }
 
-spline get_spline(int count_of_segments, point p_arr[]) {
-    fprintf(stderr, "getting spline...\n");
-    double h[MAX_POINTS],
-           parameter_t[MAX_POINTS],
-           diagonal_matrix[MAX_POINTS][MAX_POINTS];
+spline get_spline(int count_of_segments, point coordinates[]) {
+    fprintf(stderr, "+[ getting spline ]\n");
 
-    set_values(count_of_segments, p_arr, h, parameter_t, diagonal_matrix);
+    spline ans;
+    ans.size = count_of_segments;
+    ans.list = (piece_of_spline *)malloc(sizeof(piece_of_spline) * count_of_segments);
+    for (int i = 0; i < count_of_segments; ++i) {
+        ans.list[i].borders.begin = coordinates[i];
+        ans.list[i].borders.end = coordinates[i + 1];
+        ans.list[i].t_param.begin = (i == 0 ? 0.0 : ans.list[i - 1].t_param.end);
+        ans.list[i].t_param.end = ans.list[i].t_param.begin + get_segment_length(ans.list[i].borders);
+    }
 
     double x_arr[MAX_POINTS], y_arr[MAX_POINTS];
     for (int i = 0; i <= count_of_segments; ++i) {
-        x_arr[i] = p_arr[i].x;
-        y_arr[i] = p_arr[i].y;
+        x_arr[i] = coordinates[i].x;
+        y_arr[i] = coordinates[i].y;
     }
-    spline ans;
-    ans.size = count_of_segments;
-    ans.list_x = tridiagonal_matrix_algorithm(count_of_segments, h, diagonal_matrix, parameter_t, x_arr);
-    ans.list_y = tridiagonal_matrix_algorithm(count_of_segments, h, diagonal_matrix, parameter_t, y_arr);
+
+    cooficients * x_cf = get_cooficients(count_of_segments, &ans, x_arr);
+    cooficients * y_cf = get_cooficients(count_of_segments, &ans, y_arr);
 
     for (int i = 0; i < count_of_segments; ++i) {
-        ans.list_x[i].begin = p_arr[i];
-        ans.list_x[i].end = p_arr[i + 1];
-
-        ans.list_y[i].begin = p_arr[i];
-        ans.list_y[i].end = p_arr[i + 1];
+        ans.list[i].x = x_cf[i];
+        ans.list[i].y = y_cf[i];
     }
-
     return ans;
 }
 
+double get_der(cooficients cf, double number, int pr) {
+//    fprintf(stderr, "   +[ getting derivative ]\n");
 
-double get_der(segment_of_spline * seg, double number, int pr) {
-    if (pr == 0) {
-        return (double)((seg->A) * pow(number, 3) + (seg->B) * pow(number, 2) + (seg->C) * number + (seg->D));
+    if (pr == 2) {
+        return (double)(6.0 * (cf.A) * number + 2.0 * (cf.B));
     }
     if (pr == 1) {
-        return (double)(3.0 * (seg->A) * pow(number, 2) + 2.0 * (seg->B) * number + (seg->C));
+        return (double)(3.0 * (cf.A) * pow(number, 2) + 2.0 * (cf.B) * number + (cf.C));
     }
-    if (pr == 2) {
-        return (double)(6.0 * (seg->A) * number + 2.0 * (seg->B));
-    }
+    return (double)((cf.A) * pow(number, 3) + (cf.B) * pow(number, 2) + (cf.C) * number + (cf.D));
 }
 
-two_points get_dist_seg_seg(segment_of_spline * segx1, segment_of_spline * segy1, double t1_first, double t1_second,
-                            segment_of_spline * segx2, segment_of_spline * segy2, double t2_first, double t2_second) {
-    double t[2] = {(t1_first + t1_second) / 2, (t2_first + t2_second) / 2};
+segment get_pieces_dist(piece_of_spline * seg1, piece_of_spline * seg2) {
+    fprintf(stderr, "+[ getting pieces distance ]\n");
+
+    double t[2] = {(seg1->t_param.begin + seg1->t_param.end) / 2, (seg2->t_param.begin + seg2->t_param.end) / 2};
     for (int i = 0; i < CNT; ++i) {
         double t1 = t[0], t2 = t[1];
 
-        t[0] = t1 - (((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
-                       get_der(segx2, t2, 2) + pow(get_der(segx2, t2, 1), 2) +
-                      (get_der(segy2, t2, 0) - get_der(segy1, t1, 0)) *
-                       get_der(segy2, t2, 2) + pow(get_der(segy2, t2, 1), 2)) *
-                      ((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
-                       get_der(segx1, t1, 1) +
-                      (get_der(segy1, t1, 0) - get_der(segy2, t2, 0)) *
-                       get_der(segy1, t1, 1)) +
-                      ((get_der(segx1, t1, 1) * get_der(segx2, t2, 1) +
-                        get_der(segy1, t1, 1) * get_der(segy2, t2, 1)) *
-                      ((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
-                        get_der(segx2, t2, 1) +
-                       (get_der(segy2, t2, 0) - get_der(segy1, t1, 0)) *
-                        get_der(segy2, t2, 1)))) /
+        t[0] = t1 - (((get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0)) *
+                       get_der(seg2->x, t2, 2) + pow(get_der(seg2->x, t2, 1), 2) +
+                      (get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0)) *
+                       get_der(seg2->y, t2, 2) + pow(get_der(seg2->y, t2, 1), 2)) *
+                      ((get_der(seg1->x, t1, 0) - get_der(seg2->x, t2, 0)) *
+                       get_der(seg1->x, t1, 1) +
+                      (get_der(seg1->y, t1, 0) - get_der(seg2->y, t2, 0)) *
+                       get_der(seg1->y, t1, 1)) +
+                      ((get_der(seg1->x, t1, 1) * get_der(seg2->x, t2, 1) +
+                        get_der(seg1->y, t1, 1) * get_der(seg2->y, t2, 1)) *
+                      ((get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0)) *
+                        get_der(seg2->x, t2, 1) +
+                       (get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0)) *
+                        get_der(seg2->y, t2, 1)))) /
                         (
-                        ((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
-                          get_der(segx1, t1, 2) + pow(get_der(segx1, t1, 1), 2) +
+                        ((get_der(seg1->x, t1, 0) - get_der(seg2->x, t2, 0)) *
+                          get_der(seg1->x, t1, 2) + pow(get_der(seg1->x, t1, 1), 2) +
 
-                         (get_der(segy1, t1, 0) - get_der(segy2, t2, 0)) *
-                          get_der(segy1, t1, 2) + pow(get_der(segy1, t1, 1), 2)) *
+                         (get_der(seg1->y, t1, 0) - get_der(seg2->y, t2, 0)) *
+                          get_der(seg1->y, t1, 2) + pow(get_der(seg1->y, t1, 1), 2)) *
 
-                        ((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
-                          get_der(segx2, t2, 2) + pow(get_der(segx2, t2, 1), 2) +
+                        ((get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0)) *
+                          get_der(seg2->x, t2, 2) + pow(get_der(seg2->x, t2, 1), 2) +
 
-                         (get_der(segy2, t2, 0) - get_der(segy1, t1, 0)) *
-                          get_der(segy2, t2, 2) + pow(get_der(segy2, t2, 1), 2)) -
-                          pow(get_der(segx1, t1, 1) * get_der(segx2, t2, 1) +
-                              get_der(segy1, t1, 1) * get_der(segy2, t2, 1), 2)
+                         (get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0)) *
+                          get_der(seg2->y, t2, 2) + pow(get_der(seg2->y, t2, 1), 2)) -
+                          pow(get_der(seg1->x, t1, 1) * get_der(seg2->x, t2, 1) +
+                              get_der(seg1->y, t1, 1) * get_der(seg2->y, t2, 1), 2)
                          );
 
-        t[1] = t2 -   (((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
-                       get_der(segx1, t1, 2) + pow(get_der(segx1, t1, 1), 2) +
-                      (get_der(segy1, t1, 0) - get_der(segy2, t2, 0)) *
-                       get_der(segy1, t1, 2) + pow(get_der(segy1, t1, 1), 2)) *
-                      ((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
-                       get_der(segx2, t2, 1) +
-                      (get_der(segy2, t2, 0) - get_der(segy1, t1, 0)) *
-                       get_der(segy2, t2, 1)) +
-                      ((get_der(segx2, t2, 1) * get_der(segx1, t1, 1) +
-                        get_der(segy2, t2, 1) * get_der(segy1, t1, 1)) *
-                      ((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
-                        get_der(segx1, t1, 1) +
-                       (get_der(segy1, t1, 0) - get_der(segy2, t2, 0)) *
-                        get_der(segy1, t1, 1)))) /
+        t[1] = t2 -   (((get_der(seg1->x, t1, 0) - get_der(seg2->x, t2, 0)) *
+                       get_der(seg1->x, t1, 2) + pow(get_der(seg1->x, t1, 1), 2) +
+                      (get_der(seg1->y, t1, 0) - get_der(seg2->y, t2, 0)) *
+                       get_der(seg1->y, t1, 2) + pow(get_der(seg1->y, t1, 1), 2)) *
+                      ((get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0)) *
+                       get_der(seg2->x, t2, 1) +
+                      (get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0)) *
+                       get_der(seg2->y, t2, 1)) +
+                      ((get_der(seg2->x, t2, 1) * get_der(seg1->x, t1, 1) +
+                        get_der(seg2->y, t2, 1) * get_der(seg1->y, t1, 1)) *
+                      ((get_der(seg1->x, t1, 0) - get_der(seg2->x, t2, 0)) *
+                        get_der(seg1->x, t1, 1) +
+                       (get_der(seg1->y, t1, 0) - get_der(seg2->y, t2, 0)) *
+                        get_der(seg1->y, t1, 1)))) /
                         (
-                        ((get_der(segx2, t2, 0) - get_der(segx1, t1, 0)) *
-                          get_der(segx2, t2, 2) + pow(get_der(segx2, t2, 1), 2) +
+                        ((get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0)) *
+                          get_der(seg2->x, t2, 2) + pow(get_der(seg2->x, t2, 1), 2) +
 
-                         (get_der(segy2, t2, 0) - get_der(segy1, t1, 0)) *
-                          get_der(segy2, t2, 2) + pow(get_der(segy2, t2, 1), 2)) *
+                         (get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0)) *
+                          get_der(seg2->y, t2, 2) + pow(get_der(seg2->y, t2, 1), 2)) *
 
-                        ((get_der(segx1, t1, 0) - get_der(segx2, t2, 0)) *
-                          get_der(segx1, t1, 2) + pow(get_der(segx1, t1, 1), 2) +
+                        ((get_der(seg1->x, t1, 0) - get_der(seg2->x, t2, 0)) *
+                          get_der(seg1->x, t1, 2) + pow(get_der(seg1->x, t1, 1), 2) +
 
-                         (get_der(segy1, t1, 0) - get_der(segy2, t2, 0)) *
-                          get_der(segy1, t1, 2) + pow(get_der(segy1, t1, 1), 2)) -
-                          pow(get_der(segx2, t2, 1) * get_der(segx1, t1, 1) +
-                              get_der(segy2, t2, 1) * get_der(segy1, t1, 1), 2)
+                         (get_der(seg1->y, t1, 0) - get_der(seg2->y, t2, 0)) *
+                          get_der(seg1->y, t1, 2) + pow(get_der(seg1->y, t1, 1), 2)) -
+                          pow(get_der(seg2->x, t2, 1) * get_der(seg1->x, t1, 1) +
+                              get_der(seg2->y, t2, 1) * get_der(seg1->y, t1, 1), 2)
                          );
 
-        if (t[0] < t1_first) {
-            t[0] = t1_first;
+        if (t[0] < seg1->t_param.begin) {
+            t[0] = seg1->t_param.begin;
         }
-        if (t[0] > t1_second) {
-            t[0] = t1_second;
+        if (t[0] > seg1->t_param.end) {
+            t[0] = seg1->t_param.end;
         }
-        if (t[1] < t2_first) {
-            t[1] = t2_first;
+        if (t[1] < seg2->t_param.begin) {
+            t[1] = seg2->t_param.begin;
         }
-        if (t[1] > t2_second) {
-            t[1] = t2_second;
+        if (t[1] > seg1->t_param.end) {
+            t[1] = seg1->t_param.end;
         }
     }
 
-    two_points ans;
-    ans.first.x = (segx1->A) * pow(t[0], 3) + (segx1->B) * pow(t[0], 2) + (segx1->C) * t[0] + (segx1->D);
-    ans.first.y = (segy1->A) * pow(t[0], 3) + (segy1->B) * pow(t[0], 2) + (segy1->C) * t[0] + (segy1->D);
+    segment ans;
+    ans.begin.x = (seg1->x.A) * pow(t[0], 3) + (seg1->x.B) * pow(t[0], 2) + (seg1->x.C) * t[0] + (seg1->x.D);
+    ans.begin.y = (seg1->y.A) * pow(t[0], 3) + (seg1->y.B) * pow(t[0], 2) + (seg1->y.C) * t[0] + (seg1->y.D);
 
-    ans.second.x = (segx2->A) * pow(t[1], 3) + (segx2->B) * pow(t[1], 2) + (segx2->C) * t[1] + (segx2->D);
-    ans.second.y = (segy2->A) * pow(t[1], 3) + (segy2->B) * pow(t[1], 2) + (segy2->C) * t[1] + (segy2->D);
+    ans.end.x = (seg2->x.A) * pow(t[1], 3) + (seg2->x.B) * pow(t[1], 2) + (seg2->x.C) * t[1] + (seg2->x.D);
+    ans.end.y = (seg2->y.A) * pow(t[1], 3) + (seg2->y.B) * pow(t[1], 2) + (seg2->y.C) * t[1] + (seg2->y.D);
 
     return ans;
 }
 
-two_points get_dist_s_s(spline * sp1, spline * sp2) {
-    double t1[MAX_POINTS] = {0},
-           t2[MAX_POINTS] = {0};
-    for (int i = 1; i <= sp1->size; ++i) {
-        t1[i] = t1[i - 1] +
-        get_dist_p_p((point){sp1->list_x[i - 1].begin.x, sp1->list_x[i - 1].begin.y},
-                    (point){sp1->list_x[i - 1].end.x, sp1->list_x[i - 1].end.y});
-    }
-
-    for (int i = 1; i <= sp2->size; ++i) {
-        t2[i] = t2[i - 1] +
-        get_dist_p_p((point){sp2->list_x[i - 1].begin.x, sp2->list_x[i - 1].begin.y},
-                    (point){sp2->list_x[i - 1].end.x, sp2->list_x[i - 1].end.y});
-    }
+segment get_closest_points(spline * sp1, spline * sp2) {
+    fprintf(stderr, "+[ getting minimum distance ]\n");
 
     double min_dist = INFINITY;
-    two_points ans;
+    segment ans;
     for (int i = 0; i < sp1->size; ++i) {
         for (int j = 0; j < sp2->size; ++j) {
-            two_points now = get_dist_seg_seg(&(sp1->list_x[i]), &(sp1->list_y[i]), t1[i], t1[i + 1],
-                                              &(sp2->list_x[j]), &(sp2->list_y[j]), t2[j], t2[j + 1]);
-            double cur_dist = get_dist_p_p(now.first, now.second);
+            segment now = get_pieces_dist(&(sp1->list[i]), &(sp2->list[j]));
+            double cur_dist = get_segment_length(now);
             if (cur_dist < min_dist) {
                 min_dist = cur_dist;
                 ans = now;
             }
         }
     }
-
     return ans;
 }
 
-void output_spline(spline * sp, FILE * f) {
-    fprintf(stderr, "transfering info to python script...\n");
-
-    double parameter_t[MAX_POINTS] = {0};
-    for (int i = 1; i <= sp->size; ++i) {
-        parameter_t[i] = parameter_t[i - 1] +
-        get_dist_p_p((point){sp->list_x[i - 1].begin.x, sp->list_x[i - 1].begin.y},
-                    (point){sp->list_x[i - 1].end.x, sp->list_x[i - 1].end.y});
+void output_spline_info(spline * sp, FILE * f) {
+    if (f != NULL) {
+        fprintf(stderr, "+[ transfering info to python script ]\n");
+    } else {
+        fprintf(stderr, "+[ outputting ]\n");
     }
 
-    if (f != NULL)
-        fprintf(f, "%d\n", sp->size);
-    else
-        printf("%d\n", sp->size);
-    for (int i = 0; i <= sp->size; ++i) {
-        if (f != NULL)
-            fprintf(f, "%.15lf ", parameter_t[i]);
-        else
-            printf("%.15lf ", parameter_t[i]);
-    }
-    if (f != NULL)
+    if (f != NULL) {
+        fprintf(f, "%d\n%.15lf ", sp->size, 0.0);
+        for (int i = 0; i < sp->size; ++i) {
+            fprintf(f, "%.15lf ", sp->list[i].t_param.end);
+        }
         fprintf(f, "\n");
-    else
+        for (int i = 0; i < sp->size; ++i) {
+            char mask[] = "(%.15lf)*t^3+(%.15lf)*t^2+(%.15lf)*t+(%.15lf)\n";
+            cooficients cf;
+            cf = sp->list[i].x;
+            fprintf(f, mask, cf.A, cf.B, cf.C, cf.D);
+            cf = sp->list[i].y;
+            fprintf(f, mask, cf.A, cf.B, cf.C, cf.D);
+        }
+    } else {
+        for (int i = 0; i < sp->size; ++i) {
+            printf("%lf < t%d < %lf\n", sp->list[i].t_param.begin, i + 1, sp->list[i].t_param.end);
+        }
         printf("\n");
-    for (int i = 0; i < sp->size; ++i) {
-        char mask[] = "(%.15lf)*t^3+(%.15lf)*t^2+(%.15lf)*t+(%.15lf)\n";
-        if (f != NULL) {
-            fprintf(f, mask, sp->list_x[i].A, sp->list_x[i].B, sp->list_x[i].C, sp->list_x[i].D);
-            fprintf(f, mask, sp->list_y[i].A, sp->list_y[i].B, sp->list_y[i].C, sp->list_y[i].D);
-        } else {
-            printf(mask, sp->list_x[i].A, sp->list_x[i].B, sp->list_x[i].C, sp->list_x[i].D);
-            printf(mask, sp->list_y[i].A, sp->list_y[i].B, sp->list_y[i].C, sp->list_y[i].D);
+        for (int i = 0; i < sp->size; ++i) {
+            printf("(");
+            char mask[] = "(%lf)*t^3+(%lf)*t^2+(%lf)*t+(%lf)";
+            cooficients cf;
+
+            cf = sp->list[i].x;
+            printf(mask, cf.A, cf.B, cf.C, cf.D);
+            printf(", ");
+
+            cf = sp->list[i].y;
+            printf(mask, cf.A, cf.B, cf.C, cf.D);
+            printf(")\n");
         }
     }
 }
 
+void draw_spline(FILE * fr, FILE * fw) {
+    fclose(fr);
+    if (fw != NULL) {
+        fclose(fw);
+        fprintf(stderr, "+[ calling python script ]\n");
+        char sys_commad[] = "python ";
+        strcat(sys_commad, python_script_path);
+        system(sys_commad);
+    } else {
+        fprintf(stderr, "-[ not able to draw ]\n");
+    }
+}
+
+void output_splines_distance(spline * sp1, spline * sp2) {
+    fprintf(stderr, "+[ outputting splines distance ]\n");
+
+    segment closest_points = get_closest_points(sp1, sp2);
+    double dist = get_segment_length(closest_points);
+    printf("> distance = %.15lf\n", dist);
+    printf("> is intersect = %s\n", (dist < EPS ? "true" : "false"));
+    if (dist < EPS) {
+        printf("> point of intersection = (%.15lf , %.15lf)\n", closest_points.begin.x, closest_points.begin.y);
+    } else {
+        printf("> closest points = (%.15lf , %.15lf), (%.15lf , %.15lf)\n", closest_points.begin.x, closest_points.begin.y,
+                                                                            closest_points.end.x, closest_points.end.y);
+    }
+}
+
 int main() {
-    FILE * fr = fopen("input.txt", "r");
-    FILE * fw = fopen("D://Dankakon//pythonProject/to_draw.txt", "w");
+    FILE * fr = fopen(input_file_path, "r");
+    FILE * fw = fopen(to_draw_file_path, "w");
 
     int count_of_segments1, count_of_segments2;
     point p_arr1[MAX_POINTS], p_arr2[MAX_POINTS];
 
     init(&count_of_segments1, p_arr1, fr);
-    spline sp1 = get_spline(count_of_segments1, p_arr1);
-    output_spline(&sp1, fw);
-
     init(&count_of_segments2, p_arr2, fr);
+
+    spline sp1 = get_spline(count_of_segments1, p_arr1);
     spline sp2 = get_spline(count_of_segments2, p_arr2);
-    output_spline(&sp2, fw);
 
-    two_points pp = get_dist_s_s(&sp1, &sp2);
-    double dist = get_dist_p_p(pp.first, pp.second);
-    fprintf(stderr, ">>>dist = %.10lf\n>>>points: (%lf ,  %lf)  (%lf ,  %lf)\n", dist, pp.first.x, pp.first.y,  pp.second.x, pp.second.y);
+    output_spline_info(&sp1, fw);
+    output_spline_info(&sp2, fw);
 
-    if (dist < EPS) {
-        fprintf(stderr, ">>>is_intersect = true:(%lf,  %lf)\n", pp.first.x, pp.first.y);
-    } else {
-        fprintf(stderr, ">>>is_intersect = false\n");
-    }
+    output_splines_distance(&sp1, &sp2);
 
-    fclose(fw);
-    fclose(fr);
-
-    fprintf(stderr, "calling python scrypt...");
-    system("python D://Dankakon//pythonProject/main.py");
+    draw_spline(fr, fw);
+    fprintf(stderr, "+[ end ]\n");
     return 0;
 }
