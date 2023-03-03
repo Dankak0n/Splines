@@ -35,9 +35,9 @@ typedef struct {
     piece_of_spline * list;
 } spline;
 
-const char input_file_path[] = "D://Dankakon//Programming//Cbiba/input.txt";
-const char to_draw_file_path[] = "D://Dankakon//pythonProject/to_draw.txt";
-const char python_script_path[] = "D://Dankakon//pythonProject/main.py";
+const char input_file_path[] = "D://Dankakon//Programming//Cbiba//input.txt";
+const char to_draw_file_path[] = "D://Dankakon//pythonProject//to_draw.txt";
+const char python_script_path[] = "D://Dankakon//pythonProject//main.py";
 
 double get_segment_length(segment arg) {
     fprintf(stderr, "   +[ getting segment length ]\n");
@@ -169,6 +169,31 @@ double get_der(cooficients cf, double number, int pr) {
     return (double)((cf.A) * pow(number, 3) + (cf.B) * pow(number, 2) + (cf.C) * number + (cf.D));
 }
 
+double do_some_magic(piece_of_spline * seg1, piece_of_spline * seg2, double t1, double t2) {
+    double magic_var1 = get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0),
+           magic_var2 = get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0),
+           magic_var3 = get_der(seg1->x, t1, 1) * get_der(seg2->x, t2, 1) +
+                        get_der(seg1->y, t1, 1) * get_der(seg2->y, t2, 1);
+    return t1 -  ((magic_var1 * get_der(seg2->x, t2, 2) +
+                   magic_var2 * get_der(seg2->y, t2, 2) +
+                   pow(get_der(seg2->x, t2, 1), 2) +
+                   pow(get_der(seg2->y, t2, 1), 2)) *
+                 ((-magic_var1) * get_der(seg1->x, t1, 1) +
+                  (-magic_var2) * get_der(seg1->y, t1, 1)) +
+                  (magic_var3 *
+                  (magic_var1 * get_der(seg2->x, t2, 1) +
+                   magic_var2 * get_der(seg2->y, t2, 1)))) /
+                (((-magic_var1) * get_der(seg1->x, t1, 2) +
+                  (-magic_var2) * get_der(seg1->y, t1, 2) +
+                   pow(get_der(seg1->x, t1, 1), 2) +
+                   pow(get_der(seg1->y, t1, 1), 2)) *
+                  (magic_var1 * get_der(seg2->x, t2, 2) +
+                   magic_var2 * get_der(seg2->y, t2, 2) +
+                   pow(get_der(seg2->x, t2, 1), 2) +
+                   pow(get_der(seg2->y, t2, 1), 2)) -
+                   pow(magic_var3, 2));
+}
+
 segment get_pieces_dist(piece_of_spline * seg1, piece_of_spline * seg2) {
     fprintf(stderr, "+[ getting pieces distance ]\n");
 
@@ -176,65 +201,8 @@ segment get_pieces_dist(piece_of_spline * seg1, piece_of_spline * seg2) {
     for (int i = 0; i < CNT; ++i) {
         double t1 = t[0], t2 = t[1];
 
-        t[0] = t1 - (((get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0)) *
-                       get_der(seg2->x, t2, 2) + pow(get_der(seg2->x, t2, 1), 2) +
-                      (get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0)) *
-                       get_der(seg2->y, t2, 2) + pow(get_der(seg2->y, t2, 1), 2)) *
-                      ((get_der(seg1->x, t1, 0) - get_der(seg2->x, t2, 0)) *
-                       get_der(seg1->x, t1, 1) +
-                      (get_der(seg1->y, t1, 0) - get_der(seg2->y, t2, 0)) *
-                       get_der(seg1->y, t1, 1)) +
-                      ((get_der(seg1->x, t1, 1) * get_der(seg2->x, t2, 1) +
-                        get_der(seg1->y, t1, 1) * get_der(seg2->y, t2, 1)) *
-                      ((get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0)) *
-                        get_der(seg2->x, t2, 1) +
-                       (get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0)) *
-                        get_der(seg2->y, t2, 1)))) /
-                        (
-                        ((get_der(seg1->x, t1, 0) - get_der(seg2->x, t2, 0)) *
-                          get_der(seg1->x, t1, 2) + pow(get_der(seg1->x, t1, 1), 2) +
-
-                         (get_der(seg1->y, t1, 0) - get_der(seg2->y, t2, 0)) *
-                          get_der(seg1->y, t1, 2) + pow(get_der(seg1->y, t1, 1), 2)) *
-
-                        ((get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0)) *
-                          get_der(seg2->x, t2, 2) + pow(get_der(seg2->x, t2, 1), 2) +
-
-                         (get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0)) *
-                          get_der(seg2->y, t2, 2) + pow(get_der(seg2->y, t2, 1), 2)) -
-                          pow(get_der(seg1->x, t1, 1) * get_der(seg2->x, t2, 1) +
-                              get_der(seg1->y, t1, 1) * get_der(seg2->y, t2, 1), 2)
-                         );
-
-        t[1] = t2 -   (((get_der(seg1->x, t1, 0) - get_der(seg2->x, t2, 0)) *
-                       get_der(seg1->x, t1, 2) + pow(get_der(seg1->x, t1, 1), 2) +
-                      (get_der(seg1->y, t1, 0) - get_der(seg2->y, t2, 0)) *
-                       get_der(seg1->y, t1, 2) + pow(get_der(seg1->y, t1, 1), 2)) *
-                      ((get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0)) *
-                       get_der(seg2->x, t2, 1) +
-                      (get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0)) *
-                       get_der(seg2->y, t2, 1)) +
-                      ((get_der(seg2->x, t2, 1) * get_der(seg1->x, t1, 1) +
-                        get_der(seg2->y, t2, 1) * get_der(seg1->y, t1, 1)) *
-                      ((get_der(seg1->x, t1, 0) - get_der(seg2->x, t2, 0)) *
-                        get_der(seg1->x, t1, 1) +
-                       (get_der(seg1->y, t1, 0) - get_der(seg2->y, t2, 0)) *
-                        get_der(seg1->y, t1, 1)))) /
-                        (
-                        ((get_der(seg2->x, t2, 0) - get_der(seg1->x, t1, 0)) *
-                          get_der(seg2->x, t2, 2) + pow(get_der(seg2->x, t2, 1), 2) +
-
-                         (get_der(seg2->y, t2, 0) - get_der(seg1->y, t1, 0)) *
-                          get_der(seg2->y, t2, 2) + pow(get_der(seg2->y, t2, 1), 2)) *
-
-                        ((get_der(seg1->x, t1, 0) - get_der(seg2->x, t2, 0)) *
-                          get_der(seg1->x, t1, 2) + pow(get_der(seg1->x, t1, 1), 2) +
-
-                         (get_der(seg1->y, t1, 0) - get_der(seg2->y, t2, 0)) *
-                          get_der(seg1->y, t1, 2) + pow(get_der(seg1->y, t1, 1), 2)) -
-                          pow(get_der(seg2->x, t2, 1) * get_der(seg1->x, t1, 1) +
-                              get_der(seg2->y, t2, 1) * get_der(seg1->y, t1, 1), 2)
-                         );
+        t[0] = do_some_magic(seg1, seg2, t1, t2);
+        t[1] = do_some_magic(seg2, seg1, t2, t1);
 
         if (t[0] < seg1->t_param.begin) {
             t[0] = seg1->t_param.begin;
